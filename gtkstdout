@@ -59,6 +59,7 @@ parser = ArgumentParser(
 parser.add_argument('-0', '--zero', action='store_true', help='always return 0')
 parser.add_argument('-c', '--close', action='store_true', help='close immediately after command has finished executing')
 parser.add_argument('-d', '--dir', help='set the working directory')
+parser.add_argument('-e', '--stderr', action='store_true', help='display stderr also')
 parser.add_argument('-t', '--title', help='set the window title')
 parser.add_argument('cmd', nargs=PARSER, help='the command line to execute', metavar='COMMAND_LINE')
 args = parser.parse_args()
@@ -99,7 +100,11 @@ cwd = args.dir
 if cwd is None:
     cwd = '.'
 
-sub_proc = Popen(' '.join(args.cmd), stdout=PIPE, stderr=STDOUT, shell=True, cwd=cwd)
+se = None
+if args.stderr is True:
+  se = STDOUT
+
+sub_proc = Popen(' '.join(args.cmd), stdout=PIPE, stderr=se, shell=True, cwd=cwd)
 sub_outp = ""
 
 # Using list because integer variables will not work as globals...?
