@@ -18,3 +18,7 @@ optional arguments:
 
 If the -0/--zero option is not used, a return code of 255 is returned if
 cancelled, otherwise the return code of the command executed is returned
+<<<<<<< HEAD
+=======
+
+>>>>>>> e52703c54866a3fb8249edd676e7d438de278472

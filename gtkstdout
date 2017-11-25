@@ -27,6 +27,31 @@ from string import join
 from subprocess import Popen, PIPE, STDOUT
 from sys import exit
 
+def textview_changed(self, args):
+    adj = self.get_vadjustment()
+    adj.set_value( adj.upper - adj.page_size )
+
+def non_block_read(output):
+    fd = output.fileno()
+    fl = fcntl(fd, F_GETFL)
+    fcntl(fd, F_SETFL, fl | O_NONBLOCK)
+    try:
+        return output.read()
+    except:
+        return ''
+
+def update_terminal():
+    textview.get_buffer().insert_at_cursor(non_block_read(sub_proc.stdout))
+    rc = sub_proc.poll()
+    if rc is not None:
+        return_code[0] = rc
+        if args.close:
+                gtk.main_quit()
+        btn_cancel.set_visible(False)
+        btn_ok.set_visible(True)
+        return False
+    return True
+
 parser = ArgumentParser(
     description='Execute a command and display output in a gtk scrolling window',
     epilog='If the -0/--zero option is not used, a return code of 255 is returned if cancelled, otherwise the return code of the command executed is returned')
@@ -49,6 +74,7 @@ wnd.add(vbox)
 
 scroll = gtk.ScrolledWindow()
 textview = gtk.TextView()
+textview.connect('size-allocate', textview_changed)
 fontdesc = FontDescription('monospace')
 textview.modify_font(fontdesc)
 scroll.add(textview)
@@ -79,28 +105,6 @@ sub_outp = ""
 # Using list because integer variables will not work as globals...?
 return_code = []
 return_code.append(255)
-
-def non_block_read(output):
-    fd = output.fileno()
-    fl = fcntl(fd, F_GETFL)
-    fcntl(fd, F_SETFL, fl | O_NONBLOCK)
-    try:
-        return output.read()
-    except:
-        return ''
-
-
-def update_terminal():
-    textview.get_buffer().insert_at_cursor(non_block_read(sub_proc.stdout))
-    rc = sub_proc.poll()
-    if rc is not None:
-        return_code[0] = rc
-        if args.close:
-		gtk.main_quit()
-        btn_cancel.set_visible(False)
-        btn_ok.set_visible(True)
-        return False
-    return True
 
 gobject.timeout_add(100, update_terminal)
 gtk.main()
