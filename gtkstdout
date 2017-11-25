@@ -1,0 +1,111 @@
+#!/usr/bin/env python
+#
+#    Copyright (C) 2017 Simon Naunton
+#
+#    This program is free software: you can redistribute it and/or modify
+#    it under the terms of the GNU General Public License as published by
+#    the Free Software Foundation, either version 3 of the License, or
+#    (at your option) any later version.
+#
+#    This program is distributed in the hope that it will be useful,
+#    but WITHOUT ANY WARRANTY; without even the implied warranty of
+#    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#    GNU General Public License for more details.
+#
+#    You should have received a copy of the GNU General Public License
+#    along with this program.  If not, see <http://www.gnu.org/licenses/>.
+#
+# Based on code from this post https://stackoverflow.com/a/17105259
+
+import gobject
+import gtk
+from argparse import ArgumentParser, PARSER
+from fcntl import fcntl, F_GETFL, F_SETFL
+from os import O_NONBLOCK
+from pango import FontDescription
+from string import join
+from subprocess import Popen, PIPE, STDOUT
+from sys import exit
+
+parser = ArgumentParser(
+    description='Execute a command and display output in a gtk scrolling window',
+    epilog='If the -0/--zero option is not used, a return code of 255 is returned if cancelled, otherwise the return code of the command executed is returned')
+# Added -0/--zero because External Application Button firefox extension doesn't like return codes != 0
+parser.add_argument('-0', '--zero', action='store_true', help='always return 0')
+parser.add_argument('-c', '--close', action='store_true', help='close immediately after command has finished executing')
+parser.add_argument('-d', '--dir', help='set the working directory')
+parser.add_argument('-t', '--title', help='set the window title')
+parser.add_argument('cmd', nargs=PARSER, help='the command line to execute', metavar='COMMAND_LINE')
+args = parser.parse_args()
+
+wnd = gtk.Window()
+if args.title is not None:
+    wnd.set_title(args.title)
+wnd.set_default_size(400, 400)
+wnd.connect('destroy', gtk.main_quit)
+
+vbox = gtk.VBox()
+wnd.add(vbox)
+
+scroll = gtk.ScrolledWindow()
+textview = gtk.TextView()
+fontdesc = FontDescription('monospace')
+textview.modify_font(fontdesc)
+scroll.add(textview)
+
+vbox.pack_start(scroll, expand=True)
+
+bbox = gtk.HButtonBox()
+bbox.set_layout(gtk.BUTTONBOX_END)
+btn_ok = gtk.Button(stock = gtk.STOCK_OK)
+btn_ok.connect('pressed', gtk.main_quit)
+btn_cancel = gtk.Button(stock = gtk.STOCK_CANCEL)
+btn_cancel.connect('pressed', gtk.main_quit)
+bbox.add(btn_ok)
+bbox.add(btn_cancel)
+
+vbox.pack_end(bbox, expand=False)
+
+wnd.show_all()
+btn_ok.set_visible(False)
+
+cwd = args.dir
+if cwd is None:
+    cwd = '.'
+
+sub_proc = Popen(' '.join(args.cmd), stdout=PIPE, stderr=STDOUT, shell=True, cwd=cwd)
+sub_outp = ""
+
+# Using list because integer variables will not work as globals...?
+return_code = []
+return_code.append(255)
+
+def non_block_read(output):
+    fd = output.fileno()
+    fl = fcntl(fd, F_GETFL)
+    fcntl(fd, F_SETFL, fl | O_NONBLOCK)
+    try:
+        return output.read()
+    except:
+        return ''
+
+
+def update_terminal():
+    textview.get_buffer().insert_at_cursor(non_block_read(sub_proc.stdout))
+    rc = sub_proc.poll()
+    if rc is not None:
+        return_code[0] = rc
+        if args.close:
+		gtk.main_quit()
+        btn_cancel.set_visible(False)
+        btn_ok.set_visible(True)
+        return False
+    return True
+
+gobject.timeout_add(100, update_terminal)
+gtk.main()
+
+if args.zero is True:
+    exit(0)
+
+exit(return_code[0])
