@@ -20,11 +20,21 @@
 import gi
 gi.require_version('Gtk', '3.0')
 from gi.repository import Gtk, GObject, Pango
-from argparse import ArgumentParser, PARSER
+from argparse import ArgumentParser, ArgumentTypeError, PARSER
 from fcntl import fcntl, F_GETFL, F_SETFL
 from os import O_NONBLOCK
 from subprocess import Popen, PIPE, STDOUT
 from sys import exit
+
+def exit_code_validate(code):
+    try:
+        i = int(code)
+        if i < 0 or i > 255:
+            i = 255
+    except:
+        i = 255
+        pass
+    return i
 
 def textview_changed(self, args):
     adj = self.get_vadjustment()
@@ -46,7 +56,7 @@ def update_terminal():
 
     rc = sub_proc.poll()
     if rc is not None:
-        return_code[0] = rc
+        exit_code[0] = rc
         if args.close:
                 Gtk.main_quit()
         btn_cancel.set_visible(False)
@@ -56,13 +66,14 @@ def update_terminal():
 
 parser = ArgumentParser(
     description='Execute a command and display output in a gtk scrolling window',
-    epilog='If the -0/--zero option is not used, a return code of 255 is returned if cancelled, otherwise the return code of the command executed is returned')
+    epilog='If the -x/--exit-code and -0/--zero option are not used, or -x/-exit-code is invalid, an exit code of 255 is returned if the users cancels, otherwise the exit code of the command executed is returned')
 # Added -0/--zero because External Application Button firefox extension doesn't like return codes != 0
 parser.add_argument('-0', '--zero', action='store_true', help='always return 0')
 parser.add_argument('-c', '--close', action='store_true', help='close immediately after command has finished executing')
 parser.add_argument('-d', '--dir', help='set the working directory')
 parser.add_argument('-e', '--stderr', action='store_true', help='display stderr also')
-parser.add_argument('-i', '--icon', help='set window icon', metavar="FILE")
+parser.add_argument('-i', '--icon', help='set window icon', metavar='FILE')
+parser.add_argument('-x', '--exit-code', type=exit_code_validate, help='exit code if user cancels', metavar='0-255')
 parser.add_argument('-t', '--title', help='set the window title')
 parser.add_argument('cmd', nargs=PARSER, help='the command line to execute', metavar='COMMAND_LINE')
 args = parser.parse_args()
@@ -71,7 +82,10 @@ wnd = Gtk.Window()
 if args.title is not None:
     wnd.set_title(args.title)
 if args.icon is not None:
-    wnd.set_icon_from_file(args.icon)
+    try:
+        wnd.set_icon_from_file(args.icon)
+    except:
+        pass
 wnd.set_default_size(400, 400)
 wnd.connect('destroy', Gtk.main_quit)
 
@@ -84,7 +98,6 @@ textview.connect('size-allocate', textview_changed)
 fontdesc = Pango.FontDescription('monospace')
 textview.modify_font(fontdesc)
 scroll.add(textview)
-
 vbox.pack_start(scroll, True, True, 0)
 
 bbox = Gtk.HButtonBox()
@@ -95,31 +108,21 @@ btn_cancel = Gtk.Button(stock = Gtk.STOCK_CANCEL)
 btn_cancel.connect('pressed', Gtk.main_quit)
 bbox.add(btn_ok)
 bbox.add(btn_cancel)
-
 vbox.pack_end(bbox, False, False, 0)
 
 wnd.show_all()
 btn_ok.set_visible(False)
 
-cwd = args.dir
-if cwd is None:
-    cwd = '.'
-
-se = None
-if args.stderr is True:
-  se = STDOUT
-
+cwd = '.' if args.dir is None else args.dir
+se = STDOUT if args.stderr is True else None
 sub_proc = Popen(' '.join(args.cmd), stdout=PIPE, stderr=se, shell=True, cwd=cwd)
 sub_outp = ""
 
-# Using list because integer variables will not work as globals...?
-return_code = []
-return_code.append(255)
+# Using list for exit_code because integer variables do not seem to work as globals...?
+exit_code = []
+exit_code.append(255 if args.exit_code is None else int(args.exit_code))
 
 GObject.timeout_add(100, update_terminal)
 Gtk.main()
 
-if args.zero is True:
-    exit(0)
-
-exit(return_code[0])
+exit(0 if args.zero else exit_code[0])

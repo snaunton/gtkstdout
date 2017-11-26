@@ -1,9 +1,6 @@
 # gtkstdout
 Gtk application which allows you to run a command and capture and display the output.
 
-usage: gtkstdout [-h] [-0] [-c] [-d DIR] [-e] [-i FILE] [-t TITLE]
-                 COMMAND_LINE ...
-
 Execute a command and display output in a gtk scrolling window
 
 positional arguments:
@@ -16,8 +13,11 @@ optional arguments:
   -d DIR, --dir DIR     set the working directory
   -e, --stderr          display stderr also
   -i FILE, --icon FILE  set window icon
+  -x 0-255, --exit-code 0-255
+                        exit code if user cancels
   -t TITLE, --title TITLE
                         set the window title
 
-If the -0/--zero option is not used, a return code of 255 is returned if
-cancelled, otherwise the return code of the command executed is returned
+If the -x/--exit-code and -0/--zero option are not used, or -x/-exit-code is
+invalid, an exit code of 255 is returned if the users cancels, otherwise the
+exit code of the command executed is returned
