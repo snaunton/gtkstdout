@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 #
 #    Copyright (C) 2017 Simon Naunton
 #
@@ -17,19 +17,18 @@
 #
 # Based on code from this post https://stackoverflow.com/a/17105259
 
-import gobject
-import gtk
+import gi
+gi.require_version('Gtk', '3.0')
+from gi.repository import Gtk, GObject, Pango
 from argparse import ArgumentParser, PARSER
 from fcntl import fcntl, F_GETFL, F_SETFL
 from os import O_NONBLOCK
-from pango import FontDescription
-from string import join
 from subprocess import Popen, PIPE, STDOUT
 from sys import exit
 
 def textview_changed(self, args):
     adj = self.get_vadjustment()
-    adj.set_value(adj.upper - adj.page_size)
+    adj.set_value(adj.get_upper() - adj.get_page_size())
 
 def non_block_read(output):
     fd = output.fileno()
@@ -41,12 +40,15 @@ def non_block_read(output):
         return ''
 
 def update_terminal():
-    textview.get_buffer().insert_at_cursor(non_block_read(sub_proc.stdout))
+    s = non_block_read(sub_proc.stdout)
+    if s is not None:
+        textview.get_buffer().insert_at_cursor(s.decode('utf-8'))
+
     rc = sub_proc.poll()
     if rc is not None:
         return_code[0] = rc
         if args.close:
-                gtk.main_quit()
+                Gtk.main_quit()
         btn_cancel.set_visible(False)
         btn_ok.set_visible(True)
         return False
@@ -60,38 +62,41 @@ parser.add_argument('-0', '--zero', action='store_true', help='always return 0')
 parser.add_argument('-c', '--close', action='store_true', help='close immediately after command has finished executing')
 parser.add_argument('-d', '--dir', help='set the working directory')
 parser.add_argument('-e', '--stderr', action='store_true', help='display stderr also')
+parser.add_argument('-i', '--icon', help='set window icon filename')
 parser.add_argument('-t', '--title', help='set the window title')
 parser.add_argument('cmd', nargs=PARSER, help='the command line to execute', metavar='COMMAND_LINE')
 args = parser.parse_args()
 
-wnd = gtk.Window()
+wnd = Gtk.Window()
 if args.title is not None:
     wnd.set_title(args.title)
+if args.icon is not None:
+    wnd.set_icon_from_file(args.icon)
 wnd.set_default_size(400, 400)
-wnd.connect('destroy', gtk.main_quit)
+wnd.connect('destroy', Gtk.main_quit)
 
-vbox = gtk.VBox()
+vbox = Gtk.VBox()
 wnd.add(vbox)
 
-scroll = gtk.ScrolledWindow()
-textview = gtk.TextView()
+scroll = Gtk.ScrolledWindow()
+textview = Gtk.TextView()
 textview.connect('size-allocate', textview_changed)
-fontdesc = FontDescription('monospace')
+fontdesc = Pango.FontDescription('monospace')
 textview.modify_font(fontdesc)
 scroll.add(textview)
 
-vbox.pack_start(scroll, expand=True)
+vbox.pack_start(scroll, True, True, 0)
 
-bbox = gtk.HButtonBox()
-bbox.set_layout(gtk.BUTTONBOX_END)
-btn_ok = gtk.Button(stock = gtk.STOCK_OK)
-btn_ok.connect('pressed', gtk.main_quit)
-btn_cancel = gtk.Button(stock = gtk.STOCK_CANCEL)
-btn_cancel.connect('pressed', gtk.main_quit)
+bbox = Gtk.HButtonBox()
+bbox.set_layout(Gtk.ButtonBoxStyle.END)
+btn_ok = Gtk.Button(stock = Gtk.STOCK_OK)
+btn_ok.connect('pressed', Gtk.main_quit)
+btn_cancel = Gtk.Button(stock = Gtk.STOCK_CANCEL)
+btn_cancel.connect('pressed', Gtk.main_quit)
 bbox.add(btn_ok)
 bbox.add(btn_cancel)
 
-vbox.pack_end(bbox, expand=False)
+vbox.pack_end(bbox, False, False, 0)
 
 wnd.show_all()
 btn_ok.set_visible(False)
@@ -111,8 +116,8 @@ sub_outp = ""
 return_code = []
 return_code.append(255)
 
-gobject.timeout_add(100, update_terminal)
-gtk.main()
+GObject.timeout_add(100, update_terminal)
+Gtk.main()
 
 if args.zero is True:
     exit(0)
