@@ -26,9 +26,9 @@ from os import O_NONBLOCK
 from subprocess import Popen, PIPE, STDOUT
 from sys import exit, stdout
 
-def exit_code_validate(code):
+def exit_status_validate(value):
     try:
-        i = int(code)
+        i = int(value)
         if i < 0 or i > 255:
             i = 255
     except:
@@ -59,7 +59,7 @@ def update_terminal():
 
     rc = sub_proc.poll()
     if rc is not None:
-        exit_code[0] = rc
+        exit_status[0] = rc
         if args.close:
                 Gtk.main_quit()
         btn_cancel.set_visible(False)
@@ -68,14 +68,13 @@ def update_terminal():
     return True
 
 parser = ArgumentParser(description='Execute a command and display output in a gtk scrolling window',
-    epilog='Returns the exit code of command executed (unless -0/--zero is specified, or -x/--exit-code is specified and user cancels)')
-# Added -0/--zero because External Application Button firefox extension doesn't like return codes != 0
-parser.add_argument('-0', '--zero', action='store_true', help='always return exit code 0')
+    epilog='By default an exit status of 255 is returned if the user cancels, otherwise the exit status of the command executed is returned. This can be be changed using --exit-status or --zero. If an invalid value is specified for --exit-status a value of 255 is used insead. If both --exit-status and --zero are specified, --exit-status is ignored and 0 will be returned.')
+parser.add_argument('-0', '--zero', action='store_true', help='always return an exit status of 0')
 parser.add_argument('-c', '--close', action='store_true', help='close immediately after command has finished executing')
 parser.add_argument('-d', '--dir', help='set the working directory')
 parser.add_argument('-e', '--stderr', action='store_true', help='display stderr also')
 parser.add_argument('-p', '--print', action='store_true', help='echo command output to stdout')
-parser.add_argument('-x', '--exit-code', type=exit_code_validate, help='return this exit code if user cancels', metavar='0-255')
+parser.add_argument('-x', '--exit-status', type=exit_status_validate, help='return this exit status if user cancels', metavar='0-255')
 parser.add_argument('-wi', '--window-icon', help='set window icon', metavar='FILE')
 parser.add_argument('-wt', '--window-title', help='set the window title', metavar='TITLE')
 parser.add_argument('-wx', '--window-width', type=int, default=640, help='set window width in pixels', metavar='PX')
@@ -123,11 +122,11 @@ se = STDOUT if args.stderr is True else None
 sub_proc = Popen(' '.join(args.cmd), stdout=PIPE, stderr=se, shell=True, cwd=cwd)
 sub_outp = ""
 
-# Using list for exit_code because integer variables do not seem to work as globals...?
-exit_code = []
-exit_code.append(0 if args.exit_code is None else int(args.exit_code))
+# Using list for exit_status because integer variables do not seem to work as globals...?
+exit_status = []
+exit_status.append(args.exit_status)
 
 GObject.timeout_add(100, update_terminal)
 Gtk.main()
 
-exit(0 if args.zero else exit_code[0])
+exit(0 if args.zero else exit_status[0])
